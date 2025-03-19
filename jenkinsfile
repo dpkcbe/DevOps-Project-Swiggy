@@ -49,26 +49,42 @@ pipeline{
                 sh "trivy fs . > trivyfs.txt"
             }
         }
-        stage("Docker Build & Push"){
-            steps{
-                script{
-                   withDockerRegistry(credentialsId: 'docker-creds', toolName: 'docker'){   
-                       sh "docker build -t swiggy ."
-                       sh "docker tag swiggy kastrov/swiggy:latest "
-                       sh "docker push kastrov/swiggy:latest "
+        stage("Docker Build & Push") {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {   
+                        def imageExists = sh(script: "docker images -q dpkcbe/swiggy:latest", returnStdout: true).trim()
+                        if (imageExists) {
+                            sh "docker rmi dpkcbe/swiggy:latest"
+                        }
+                        sh "docker build -t swiggy ."
+                        sh "docker tag swiggy dpkcbe/swiggy:latest "
+                        sh "docker push dpkcbe/swiggy:latest "
                     }
                 }
             }
         }
-        stage("TRIVY"){
-            steps{
-                sh "trivy image kastrov/swiggy:latest > trivy.txt" 
+        stage("TRIVY") {
+            steps {
+                sh "trivy image dpkcbe/swiggy:latest > trivy.txt" 
             }
         }
-        stage('Deploy to container'){
-            steps{
-                sh 'docker run -d --name swiggy -p 3000:3000 kastrov/swiggy:latest'
+ stage('Deploy to Container') {
+    steps {
+        script {
+            // Check if the container is running
+            def containerExists = sh(script: "docker ps -q -f name=swiggy", returnStdout: true).trim()
+
+            // If the container exists, stop and remove it
+            if (containerExists) {
+                sh 'docker stop swiggy'
+                sh 'docker rm swiggy'
             }
+
+            // Run the latest container
+            sh 'docker run -d --name swiggy -p 3000:3000 dpkcbe/swiggy:latest'
         }
     }
+}
+}
 }
